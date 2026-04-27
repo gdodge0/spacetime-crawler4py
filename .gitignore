@@ -108,3 +108,6 @@ venv.bak/
 
 *.full.py
 *.shelve
+
+# config (because it contains student IDs)
+config.ini
