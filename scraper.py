@@ -1,58 +1,16 @@
 import re
-from collections import Counter, defaultdict
-
-from urllib.parse import urlparse, urljoin, urldefrag, urlunparse, parse_qsl
-
+from urllib.parse import urlparse, urlsplit, parse_qsl
+from src import data, normalization, rules, page_ops
 from bs4 import BeautifulSoup
 
+hosts: dict = {}
 
-# more efficient
-BAD_EXTENSIONS = re.compile(
-    r".*\.(css|js|bmp|gif|jpe?g|ico|png|tiff?|mid|mp2|mp3|mp4|wav|avi|mov|"
-    r"mpeg|ram|m4v|mkv|ogg|ogv|pdf|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|"
-    r"names|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso|epub|dll|cnf|tgz|"
-    r"sha1|thmx|mso|arff|rtf|jar|csv|rm|smil|wmv|swf|wma|zip|rar|gz)$"
-)
+data.replay_from_jsonl(hosts)
 
-STOP_WORDS = {
-    "a", "about", "above", "after", "again", "against", "all", "am", "an",
-    "and", "any", "are", "aren't", "as", "at", "be", "because", "been",
-    "before", "being", "below", "between", "both", "but", "by", "can't",
-    "cannot", "could", "couldn't", "did", "didn't", "do", "does",
-    "doesn't", "doing", "don't", "down", "during", "each", "few", "for",
-    "from", "further", "had", "hadn't", "has", "hasn't", "have",
-    "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here",
-    "here's", "hers", "herself", "him", "himself", "his", "how", "how's",
-    "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is",
-    "isn't", "it", "it's", "its", "itself", "let's", "me", "more",
-    "most", "mustn't", "my", "myself", "no", "nor", "not", "of", "off",
-    "on", "once", "only", "or", "other", "ought", "our", "ours",
-    "ourselves", "out", "over", "own", "same", "shan't", "she", "she'd",
-    "she'll", "she's", "should", "shouldn't", "so", "some", "such",
-    "than", "that", "that's", "the", "their", "theirs", "them",
-    "themselves", "then", "there", "there's", "these", "they", "they'd",
-    "they'll", "they're", "they've", "this", "those", "through", "to",
-    "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd",
-    "we'll", "we're", "we've", "were", "weren't", "what", "what's",
-    "when", "when's", "where", "where's", "which", "while", "who",
-    "who's", "whom", "why", "why's", "with", "won't", "would",
-    "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your",
-    "yours", "yourself", "yourselves"
-}
 
-DOMAINS = {
-    "ics.uci.edu",
-    "cs.uci.edu",
-    "informatics.uci.edu",
-    "stat.uci.edu",
-}
-
-unique_pages = set()
-word_counter = Counter()
-subdomain_counter = defaultdict(int)
-
-longest_page_url = ""
-longest_page_word_count = 0
+def create_host_ifndef(host_str):
+    if host_str not in hosts:
+        hosts[host_str] = data.Host(host_str)
 
 
 def scraper(url, resp):
@@ -68,128 +26,117 @@ def extract_next_links(url, resp):
     # resp.raw_response: this is where the page actually is. More specifically, the raw_response has two parts:
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
+
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
+    # Resolve host/pattern up front so we can register status even when the
+    # response is an error, and we'll bail before reaching the simhash step.
+    processed_url = normalization.normalize_url(url)
+    bucket_keys = processed_url["bucket_keys"]
+    host_str = processed_url["normalized_urlsplit"]["netloc"]
 
-    if resp is None or resp.status is None or resp.status != 200:  
-        return []
-    
-    if resp.raw_response is None:
-        return []
-    
-    if not hasattr(resp.raw_response, "content") or resp.raw_response.content is None:
-        return []
-    
-    content = resp.raw_response.content
+    host = None
+    if host_str:
+        create_host_ifndef(host_str)
+        host = hosts[host_str]
+        for key in bucket_keys:
+            host.create_pattern_ifndef(key)
+            host.patterns[key].register_status(resp.status)
 
-    if len(content) ==0:
-        return []
-    
-    # if content type exist and says it is not html skip it
-    headers = getattr(resp.raw_response, "headers", {})
-    content_type = headers.get("content-type", "").lower()
-    
-    if content_type and "html" not in content_type:
-        return []
-    
-    base_url = getattr(resp.raw_response, "url", None) or resp.url or url
-    base_url, _ = urldefrag(base_url)
+    if not (rules.status_ok(resp.status)):
+        return list() # If something is wrong, we're going to skip it.
+
+    if resp.raw_response is None or (not rules.headers_ok(resp.raw_response.headers)):
+        return list()
+
+    if not rules.size_ok(resp.raw_response.content):
+        return list()
+
+    expect_redirect, redirect_url = rules.check_redirect(url, resp)
+
+    # Either return nothing (if some sort of parsing error, or the redirect url)
+    if expect_redirect and not redirect_url:
+        return list()
+    elif expect_redirect and redirect_url:
+        return [redirect_url]
+    # Else: Continue
+
+    soup = BeautifulSoup(resp.raw_response.content, "lxml")
+
+    base_url = getattr(resp.raw_response, "url", None) or url
+
+    links = page_ops.extract_links(base_url, soup)
+    text = page_ops.extract_visible_text(soup)
+
+    # Compute simhash once; reuse for trap detection and for the jsonl
+    # log entry so replay on startup is exact (no rehashing).
+    sh = data.compute_simhash(text)
+
+    for key in bucket_keys:
+        host.patterns[key].register_page(url, text, sh)
+
+    data.write_page(url, text, sh.value, bucket_keys)
+
+    return links
 
 
-    if not is_valid(base_url):
-        return[]
-    
-    soup = BeautifulSoup(content,"html.parser")
+def pattern_allowed(url):
+    # For re-check at dequeue time.
+    processed_url = normalization.normalize_url(url)
+    host_str = processed_url["normalized_urlsplit"]["netloc"]
+    if not host_str:
+        return True
+    host = hosts.get(host_str)
+    if host is None:
+        return True
+    for key in processed_url["bucket_keys"]:
+        if not host.pattern_enabled(key):
+            return False
+    return True
 
-    text = soup.get_text(separator=" ")
-    update_stats(base_url, text)
-
-
-    links = set()
-
-    for tag in soup.find_all("a", href = True):
-        link = urljoin(base_url, tag["href"])
-        link, _ = urldefrag(link)
-
-        if is_valid(link):
-            links.add(link)
-
-
-    return list(links)
 
 def is_valid(url):
-    # Decide whether to crawl this url or not. 
+    # Decide whether to crawl this url or not.
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
+
+    # First, let's normalize this url
+    processed_url = normalization.normalize_url(url)
+    host_str = processed_url["normalized_urlsplit"]["netloc"]
+
+    # Let's check if this hostname is in our crawler's scope
+    if not rules.host_in_scope(host_str):
+        return False
+
+    create_host_ifndef(host_str)
+    host = hosts[host_str]
+    # Let's see if we've seen this path before
+    if host.seen_path(processed_url["dedup_key"]):
+        return False # don't re-crawl it
+
+    # Now, lets check if this url pattern is enabled
+    bucket_keys = processed_url["bucket_keys"]
+    for key in bucket_keys:
+        if not host.pattern_enabled(key):
+            return False # Pattern is disabled due to similarity
+
+
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
-        
-            
-        if parsed.hostname:
-            hostname = parsed.hostname.lower()
-        else:
-            hostname = ""
+        return not re.match(
+            r".*\.(css|js|bmp|gif|jpe?g|ico"
+            + r"|png|tiff?|mid|mp2|mp3|mp4"
+            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
+            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
+            + r"|epub|dll|cnf|tgz|sha1"
+            + r"|thmx|mso|arff|rtf|jar|csv"
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz"
+            + r"|java|xml|war|sql|sh|svg|fig|conf|class"
+            + r"|c|h|cc|cpp|cxx|hpp|hh|hxx|m|mm|rs|go|py|rb|pl|lua|ts|tsx|jsx|kt|swift|scala|el|lisp|clj|hs|ml|f|f90|asm|s)$",
+            parsed.path.lower())
 
-
-        allowed = False
-
-        for domain in DOMAINS:
-            if hostname == domain or hostname.endswith("." + domain):
-                allowed = True
-                break
-
-        if not allowed:
-            return False
-            
-        path = parsed.path.lower()
-
-        if BAD_EXTENSIONS.match(path):
-            return False
-        
-        if is_trap(parsed):
-            return False
-
-
-        return True
-    
-
-
-
-    except Exception:
-        return False
-
-
-
-def is_trap(parsed):
-    url = parsed.geturl()
-    path = parsed.path.lower()
-
-    if len(url) > 300:
-        return True
-    
-    segments = []
-
-    for seg in path.split("/"):
-        if seg:
-            segments.append(seg)
-
-    
-    if len(segments) > 15:
-        return True
-    
-    counts = Counter(segments)
-
-
-    # repeated path segments
-    for count in counts.values():
-        if count >= 3:
-            return True
-        
-    return False
-
-
-def update_stats(url,text):
-
-    #will finish later
-    pass
+    except TypeError:
+        print ("TypeError for ", parsed)
+        raise
