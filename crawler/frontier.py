@@ -5,7 +5,7 @@ from threading import Thread, RLock
 from queue import Queue, Empty
 
 from utils import get_logger, get_urlhash, normalize
-from scraper import is_valid
+from scraper import is_valid, pattern_allowed
 
 class Frontier(object):
     def __init__(self, config, restart):
@@ -48,10 +48,16 @@ class Frontier(object):
             f"total urls discovered.")
 
     def get_tbd_url(self):
-        try:
-            return self.to_be_downloaded.pop()
-        except IndexError:
-            return None
+        while True:
+            try:
+                url = self.to_be_downloaded.pop()
+            except IndexError:
+                return None
+            if not pattern_allowed(url):
+                # Pattern banned after enqueue; drop.
+                self.mark_url_complete(url)
+                continue
+            return url
 
     def add_url(self, url):
         url = normalize(url)

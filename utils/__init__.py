@@ -30,6 +30,5 @@ def get_urlhash(url):
         f"{parsed.query}/{parsed.fragment}".encode("utf-8")).hexdigest()
 
 def normalize(url):
-    if url.endswith("/"):
-        return url.rstrip("/")
+    # Preserve trailing slashes so urljoin (url, href) works properly
     return url
