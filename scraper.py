@@ -1,5 +1,5 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, parse_qsl
 from src import data, normalization, rules, page_ops
 from bs4 import BeautifulSoup
 
@@ -133,7 +133,8 @@ def is_valid(url):
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz"
-            + r"|java|xml|war|sql|sh|svg|fig|conf|class)$",
+            + r"|java|xml|war|sql|sh|svg|fig|conf|class"
+            + r"|c|h|cc|cpp|cxx|hpp|hh|hxx|m|mm|rs|go|py|rb|pl|lua|ts|tsx|jsx|kt|swift|scala|el|lisp|clj|hs|ml|f|f90|asm|s)$",
             parsed.path.lower())
 
     except TypeError:

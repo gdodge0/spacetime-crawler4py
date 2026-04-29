@@ -21,8 +21,13 @@ def is_large(string: str) -> bool:
 
 def pattern_detection(path: str) -> str:
     path_split = path.split("/")
+    # Identify files
+    leaf_idx = -1
+    for i, item in enumerate(path_split):
+        if item:
+            leaf_idx = i
     rebuilt_path = ""
-    for item in path_split:
+    for i, item in enumerate(path_split):
         if item == "":
             rebuilt_path += "/"
         elif item.isnumeric():
@@ -37,12 +42,29 @@ def pattern_detection(path: str) -> str:
             # docuwiki namespaces
             namespace = ":".join(item.split(":")[:-1])
             rebuilt_path += namespace.lower() + ":{PAGE}/"
+        elif i == leaf_idx and "." in item:
+            rebuilt_path += "{FILE}/"
         else:
             rebuilt_path += item.lower() + "/"
 
     rebuilt_path = rebuilt_path.rstrip("/")
 
     return rebuilt_path
+
+
+_APACHE_SORT_VALUE = re.compile(r"^[A-Za-z](?:;[CO]=[A-Za-z])*$")
+
+
+def is_apache_sort_query(query: list[tuple[str, str]]) -> bool:
+    # Apache sort evades parse_qsl, so we're handling it explicitly
+    if not query:
+        return False
+    for k, v in query:
+        if k not in ("C", "O"):
+            return False
+        if not _APACHE_SORT_VALUE.match(v):
+            return False
+    return True
 
 
 def strip_query(query: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -89,6 +111,8 @@ def normalize_url(url: str) -> dict | None:
 
     query = parse_qsl(split.query)
     query = strip_query(query) # remove ad / junk query params
+    if is_apache_sort_query(query):
+        query = []
     query = sorted(query) # normalize query param order
     query = urlencode(query)
 

@@ -19,6 +19,8 @@ MIN_WORDS = 50
 LOW_VALUE_TRIGGER = 20
 MIN_REQUESTS_FOR_ERROR_CHECK = 20
 ERROR_RATE_THRESHOLD = 0.80
+SUBTREE_BAN_TRIGGER = 3  # ban an ancestor once N descendant patterns have banned
+SUBTREE_BAN_MIN_DEPTH = 2  # don't cascade above 2 path segments deep
 
 TEXT_DIR = "text"
 
@@ -41,8 +43,9 @@ class Pattern:
     error_count: int
     pattern_enabled: bool
 
-    def __init__(self, pattern: str) -> None:
+    def __init__(self, pattern: str, host: "Host" = None) -> None:
         self.pattern = pattern
+        self.host = host
         self.pages = SimhashIndex([])
         self.pages_count = 0
         self.urls_seen = 0
@@ -52,11 +55,13 @@ class Pattern:
         self.pattern_enabled = True
 
     def _disable(self, reason: str) -> None:
-        # Only log on the first transition; the disable checks re-run on
-        # later registrations and we don't want duplicate warnings.
-        if self.pattern_enabled:
-            _log.warning("Pattern banned (%s): %s", reason, self.pattern)
+        # Only fire the cascade and log on the first transition.
+        if not self.pattern_enabled:
+            return
         self.pattern_enabled = False
+        _log.warning("Pattern banned (%s): %s", reason, self.pattern)
+        if self.host is not None:
+            self.host.on_pattern_disabled(self.pattern)
 
     def register_simhash(self, url: str, sh: Simhash) -> None:
         self.urls_seen += 1
@@ -102,11 +107,16 @@ class Host:
     host: str
     patterns: dict[str, "Pattern"]
     paths: set[str]
+    subtree_ban_counts: dict[str, int]
+    banned_subtrees: set[str]
 
     def __init__(self, host: str) -> None:
         self.host = host
         self.patterns = dict()
         self.paths = set()
+        # For cascading ban of related subtrees
+        self.subtree_ban_counts = dict()
+        self.banned_subtrees = set()
 
     def seen_path(self, path):
         if path in self.paths:
@@ -116,9 +126,28 @@ class Host:
 
     def create_pattern_ifndef(self, pattern_str: str):
         if pattern_str not in self.patterns:
-            self.patterns[pattern_str] = Pattern(pattern_str)
+            self.patterns[pattern_str] = Pattern(pattern_str, self)
+
+    def on_pattern_disabled(self, key: str) -> None:
+        parts = key.split("/")
+        for i in range(len(parts) - 1, 0, -1):
+            ancestor = "/".join(parts[:i])
+            if not ancestor or ancestor.count("/") < SUBTREE_BAN_MIN_DEPTH:
+                continue
+            if ancestor in self.banned_subtrees:
+                continue
+            cnt = self.subtree_ban_counts.get(ancestor, 0) + 1
+            self.subtree_ban_counts[ancestor] = cnt
+            if cnt >= SUBTREE_BAN_TRIGGER:
+                self.banned_subtrees.add(ancestor)
+                _log.warning(
+                    "Subtree banned (descendants=%d>=%d): %s",
+                    cnt, SUBTREE_BAN_TRIGGER, ancestor)
 
     def pattern_enabled(self, pattern_str: str) -> bool:
+        for prefix in self.banned_subtrees:
+            if pattern_str == prefix or pattern_str.startswith(prefix + "/"):
+                return False
         pattern = self.patterns.get(pattern_str)
         if pattern is None:
             return True
