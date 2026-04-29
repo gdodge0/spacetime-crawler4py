@@ -15,11 +15,16 @@ def host_in_scope(host: str):
 
     return True
 
+REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+
+
 def check_redirect(url, resp):
-    if resp.status not in range(301, 309):
+    # This isn't actually needed, the cache server itself follows redirects it seems
+    # But, I'm leaving it in bcs why not
+    if resp.status not in REDIRECT_STATUSES:
         return False, None
 
-    new_location = resp.headers.get("location")
+    new_location = resp.raw_response.headers.get("location")
     if not new_location:
         return True, None
 

@@ -62,7 +62,9 @@ def extract_next_links(url, resp):
 
     soup = BeautifulSoup(resp.raw_response.content, "lxml")
 
-    links = page_ops.extract_links(url, soup)
+    base_url = getattr(resp.raw_response, "url", None) or url
+
+    links = page_ops.extract_links(base_url, soup)
     text = page_ops.extract_visible_text(soup)
 
     # Compute simhash once; reuse for trap detection and for the jsonl
@@ -75,6 +77,21 @@ def extract_next_links(url, resp):
     data.write_page(url, text, sh.value, bucket_keys)
 
     return links
+
+
+def pattern_allowed(url):
+    # For re-check at dequeue time.
+    processed_url = normalization.normalize_url(url)
+    host_str = processed_url["normalized_urlsplit"]["netloc"]
+    if not host_str:
+        return True
+    host = hosts.get(host_str)
+    if host is None:
+        return True
+    for key in processed_url["bucket_keys"]:
+        if not host.pattern_enabled(key):
+            return False
+    return True
 
 
 def is_valid(url):
@@ -115,8 +132,9 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)"
-              r"|java|xml|war|sql|sh|svg|fig|conf|class$", parsed.path.lower())
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz"
+            + r"|java|xml|war|sql|sh|svg|fig|conf|class)$",
+            parsed.path.lower())
 
     except TypeError:
         print ("TypeError for ", parsed)

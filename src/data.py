@@ -11,13 +11,13 @@ _log = logging.getLogger(__name__)
 # Trap detection: bucket fetched pages by URL-path pattern, detect similar pages w/ simhash,
 # skip when threshold is reached, and write log to jsonl.
 
-MIN_PAGES_SKIP = 25
+MIN_PAGES_SKIP = 20
 MAX_PAGES_COMPARE = 10000
 MAX_URLS_PER_PATTERN = 10000  # hard cap on distinct fetched URLs per bucket
-NEAR_DUP_TRIGGER = 25
+NEAR_DUP_TRIGGER = 20
 MIN_WORDS = 50
-LOW_VALUE_TRIGGER = 25
-MIN_REQUESTS_FOR_ERROR_CHECK = 25
+LOW_VALUE_TRIGGER = 20
+MIN_REQUESTS_FOR_ERROR_CHECK = 20
 ERROR_RATE_THRESHOLD = 0.80
 
 TEXT_DIR = "text"

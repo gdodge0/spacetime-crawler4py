@@ -67,6 +67,8 @@ def extract_visible_text(soup):
         tag.decompose()
 
     for tag in soup.find_all(attrs={"role": True}):
+        if tag.attrs is None:
+            continue
         if tag.get("role") in _BOILERPLATE_ROLES:
             tag.decompose()
 
