@@ -1,29 +1,30 @@
 import json
+import logging
 import re
 from simhash import Simhash, SimhashIndex
 from pathlib import Path
 from src.normalization import normalize_url
 from time import time
 
+_log = logging.getLogger(__name__)
+
 # Trap detection: bucket fetched pages by URL-path pattern, detect similar pages w/ simhash,
 # skip when threshold is reached, and write log to jsonl.
 
-MIN_PAGES_SKIP = 10
-MAX_PAGES_COMPARE = 1000
-MAX_URLS_PER_PATTERN = 1000  # hard cap on distinct fetched URLs per bucket
-NEAR_DUP_RATIO = 0.7
-MIN_REQUESTS_FOR_ERROR_CHECK = 10
-ERROR_RATE_THRESHOLD = 0.7
+MIN_PAGES_SKIP = 25
+MAX_PAGES_COMPARE = 10000
+MAX_URLS_PER_PATTERN = 10000  # hard cap on distinct fetched URLs per bucket
+NEAR_DUP_TRIGGER = 25
+MIN_WORDS = 50
+LOW_VALUE_TRIGGER = 25
+MIN_REQUESTS_FOR_ERROR_CHECK = 25
+ERROR_RATE_THRESHOLD = 0.80
 
 TEXT_DIR = "text"
 
 
-def get_features(s: str) -> list[str]:
-    # https://leons.im/posts/a-python-implementation-of-simhash-algorithm/
-    width = 6
-    s = s.lower()
-    s = re.sub(r'[^\w]+', '', s)
-    return [s[i:i + width] for i in range(max(len(s) - width + 1, 1))]
+def get_features(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
 
 
 def compute_simhash(text: str) -> Simhash:
@@ -35,6 +36,7 @@ class Pattern:
     pages: SimhashIndex
     pages_count: int
     urls_seen: int
+    low_value_count: int
     requests_count: int
     error_count: int
     pattern_enabled: bool
@@ -44,21 +46,28 @@ class Pattern:
         self.pages = SimhashIndex([])
         self.pages_count = 0
         self.urls_seen = 0
+        self.low_value_count = 0
         self.requests_count = 0
         self.error_count = 0
         self.pattern_enabled = True
 
+    def _disable(self, reason: str) -> None:
+        # Only log on the first transition; the disable checks re-run on
+        # later registrations and we don't want duplicate warnings.
+        if self.pattern_enabled:
+            _log.warning("Pattern banned (%s): %s", reason, self.pattern)
+        self.pattern_enabled = False
+
     def register_simhash(self, url: str, sh: Simhash) -> None:
         self.urls_seen += 1
         if self.urls_seen > MAX_URLS_PER_PATTERN:
-            self.pattern_enabled = False
+            self._disable(f"urls_seen>{MAX_URLS_PER_PATTERN}")
             return
 
         if self.pages_count > MIN_PAGES_SKIP:
             near_dup_count = len(self.pages.get_near_dups(sh))
-            ratio = near_dup_count / self.pages_count
-            if ratio > NEAR_DUP_RATIO:
-                self.pattern_enabled = False
+            if near_dup_count > NEAR_DUP_TRIGGER:
+                self._disable(f"near_dups={near_dup_count}>{NEAR_DUP_TRIGGER}")
 
         if self.pattern_enabled and self.pages_count < MAX_PAGES_COMPARE:
             self.pages.add(url, sh)
@@ -71,11 +80,22 @@ class Pattern:
         if 400 <= status < 500:
             self.error_count += 1
         if self.requests_count > MIN_REQUESTS_FOR_ERROR_CHECK:
-            if self.error_count / self.requests_count > ERROR_RATE_THRESHOLD:
-                self.pattern_enabled = False
+            error_rate = self.error_count / self.requests_count
+            if error_rate > ERROR_RATE_THRESHOLD:
+                self._disable(f"error_rate={error_rate:.2f}>{ERROR_RATE_THRESHOLD}")
+
+    def register_low_value(self) -> None:
+        self.low_value_count += 1
+        if self.low_value_count > LOW_VALUE_TRIGGER:
+            self._disable(f"low_value={self.low_value_count}>{LOW_VALUE_TRIGGER}")
+
+    def register_page(self, url: str, text: str, sh: Simhash) -> None:
+        self.register_simhash(url, sh)
+        if len(get_features(text)) < MIN_WORDS:
+            self.register_low_value()
 
     def register_text(self, url: str, text: str) -> None:
-        self.register_simhash(url, compute_simhash(text))
+        self.register_page(url, text, compute_simhash(text))
 
 
 class Host:
@@ -173,18 +193,18 @@ def _replay_entry(hosts: dict, entry: dict) -> bool:
 
     host.paths.add(dedup_key)
 
+    text = entry.get("text", "")
     sh_value = entry.get("simhash")
     if isinstance(sh_value, int):
         sh = Simhash(value=sh_value)
-    else:
-        text = entry.get("text", "")
-        if not text:
-            return True  # path recorded as seen, but no body to hash
+    elif text:
         sh = compute_simhash(text)
+    else:
+        return True  # path recorded as seen, but no body to hash
 
     bucket_keys = entry.get("bucket_keys") or norm["bucket_keys"]
     for key in bucket_keys:
         host.create_pattern_ifndef(key)
-        host.patterns[key].register_simhash(fetch_url, sh)
+        host.patterns[key].register_page(fetch_url, text, sh)
 
     return True

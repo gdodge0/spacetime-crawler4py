@@ -3,16 +3,38 @@ from src.normalization import normalize_url
 from urllib.parse import urljoin
 
 def extract_links(url, soup):
+    base_url = url
+    base_tag = soup.find("base", href=True)
+    if base_tag:
+        base_href = (base_tag.get("href") or "").strip()
+        if base_href:
+            base_url = urljoin(url, base_href)
+
+    candidates = []
+    for tag in soup.find_all(["a", "area"]):
+        href = tag.get("href")
+        if href:
+            candidates.append(href)
+    for tag in soup.find_all("iframe"):
+        src = tag.get("src")
+        if src:
+            candidates.append(src)
+    for tag in soup.find_all("link"):
+        rel = tag.get("rel") or []
+        if "canonical" in rel:
+            href = tag.get("href")
+            if href:
+                candidates.append(href)
+
+    seen = set()
     links = []
-
-    for link in soup.find_all("a"):
-        href = link.get("href")
-
+    for raw in candidates:
+        href = raw.strip()
         if not href:
             continue
 
         try:
-            new_url = urljoin(url, href)
+            new_url = urljoin(base_url, href)
         except ValueError:
             # malformed href
             continue
@@ -21,7 +43,11 @@ def extract_links(url, soup):
         if not res["dedup_key"]:
             continue # invalid link
 
-        links.append(res["fetch_url"])
+        fetch = res["fetch_url"]
+        if fetch in seen:
+            continue
+        seen.add(fetch)
+        links.append(fetch)
 
     return links
 

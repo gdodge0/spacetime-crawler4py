@@ -61,7 +61,8 @@ def extract_next_links(url, resp):
     # Else: Continue
 
     soup = BeautifulSoup(resp.raw_response.content, "lxml")
-    # Get text content
+
+    links = page_ops.extract_links(url, soup)
     text = page_ops.extract_visible_text(soup)
 
     # Compute simhash once; reuse for trap detection and for the jsonl
@@ -69,12 +70,10 @@ def extract_next_links(url, resp):
     sh = data.compute_simhash(text)
 
     for key in bucket_keys:
-        host.patterns[key].register_simhash(url, sh)
+        host.patterns[key].register_page(url, text, sh)
 
     data.write_page(url, text, sh.value, bucket_keys)
 
-    # finally, get links
-    links = page_ops.extract_links(url, soup)
     return links
 
 

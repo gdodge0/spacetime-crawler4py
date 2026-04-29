@@ -4,12 +4,19 @@ import validators
 
 
 date_regex = re.compile(r"\b(?:\d{4}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])|(?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])[-/.]\d{2,4}|(?:0?[1-9]|[12]\d|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.]\d{2,4}|\d{8})\b")
+# Year-month archives like /2026-04 generate one URL pattern per month
+# otherwise; collapse them into a single bucket so the trap detector
+# can ban the whole archive at once.
+year_month_regex = re.compile(r"\d{4}[-/.](?:0?[1-9]|1[0-2])")
 
 def is_date(date_str: str) -> bool:
     return bool(date_regex.fullmatch(date_str))
 
+def is_year_month(s: str) -> bool:
+    return bool(year_month_regex.fullmatch(s))
+
 def is_large(string: str) -> bool:
-    if len(string) >= 64:
+    if len(string) >= 128:
         return True
     else:
         return False
@@ -25,6 +32,8 @@ def pattern_detection(path: str) -> str:
             rebuilt_path += "{NUMBER}/"
         elif is_date(item):
             rebuilt_path += "{DATE}/"
+        elif is_year_month(item):
+            rebuilt_path += "{YEAR_MONTH}/"
         elif is_large(item):
             rebuilt_path += "{LARGE}/"
         else:
