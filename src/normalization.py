@@ -39,9 +39,10 @@ def pattern_detection(path: str) -> str:
         elif is_large(item):
             rebuilt_path += "{LARGE}/"
         elif ":" in item:
-            # docuwiki namespaces
-            namespace = ":".join(item.split(":")[:-1])
-            rebuilt_path += namespace.lower() + ":{PAGE}/"
+            parts = item.split(":")
+            for ns in parts[:-1]:
+                rebuilt_path += ns.lower() + "/"
+            rebuilt_path += "{PAGE}/"
         elif i == leaf_idx and "." in item:
             rebuilt_path += "{FILE}/"
         else:
