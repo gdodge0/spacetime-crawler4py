@@ -44,6 +44,8 @@ def status_ok(status):
         return False  # download exception
     elif status in range(400, 600):
         return False  # error page of some nature
+    elif status == 700:
+        return False # Custom size exceeded status code
 
     return True
 
