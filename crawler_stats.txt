@@ -1,0 +1,162 @@
+Unique pages: 13729
+
+Longest page (by word count):
+  http://www.ics.uci.edu/~cs224
+  78184 words
+
+Top 10 largest pages:
+  http://www.ics.uci.edu/~cs224, 78184 words
+  https://ics.uci.edu/~eppstein/pubs/all.html, 36845 words
+  https://ics.uci.edu/~gbowker/classification, 34817 words
+  https://cml.ics.uci.edu/category/aiml/, 24886 words
+  https://ics.uci.edu/~eppstein/junkyard/all.html, 23765 words
+  http://www.ics.uci.edu/~pattis/quotations.html, 23121 words
+  https://ics.uci.edu/~eppstein/pubs/geom-all.html, 23075 words
+  https://ics.uci.edu/~eppstein/pubs/graph-all.html, 19614 words
+  https://ics.uci.edu/~kay/computer.law/cyberlawcourse/lessons/disput01.html, 18457 words
+  https://ics.uci.edu/~pattis/ICS-33/announcements.html, 18294 words
+
+Top 50 words:
+  married, 29629
+  will, 26666
+  can, 23563
+  may, 22857
+  events, 22592
+  ics, 20530
+  one, 18412
+  data, 17382
+  jan, 15790
+  dec, 15384
+  ny, 15254
+  mar, 15253
+  jun, 14806
+  time, 14648
+  oct, 14152
+  sep, 13952
+  feb, 13892
+  apr, 13804
+  nov, 13635
+  uci, 13557
+  aug, 13460
+  jul, 13459
+  information, 13149
+  software, 11763
+  use, 11596
+  computer, 11186
+  using, 11147
+  project, 11132
+  new, 10552
+  course, 10397
+  first, 9941
+  work, 9816
+  class, 9739
+  also, 9621
+  university, 9516
+  program, 9385
+  systems, 9376
+  edu, 9305
+  family, 9028
+  research, 9010
+  two, 8958
+  file, 8845
+  read, 8729
+  day, 8600
+  code, 8546
+  science, 8470
+  learning, 8150
+  system, 7783
+  students, 7736
+  number, 7448
+
+Subdomains (91):
+  accessibility.ics.uci.edu, 6
+  acoi.ics.uci.edu, 114
+  archive-beta.ics.uci.edu, 12
+  archive.ics.uci.edu, 145
+  asterix.ics.uci.edu, 15
+  bit.ics.uci.edu, 1
+  cert.ics.uci.edu, 32
+  checkin.ics.uci.edu, 11
+  chenli.ics.uci.edu, 19
+  cloudberry.ics.uci.edu, 8
+  cml.ics.uci.edu, 262
+  code.ics.uci.edu, 15
+  computableplant.ics.uci.edu, 96
+  containers.ics.uci.edu, 1
+  courselisting.ics.uci.edu, 4
+  cradl.ics.uci.edu, 26
+  create.ics.uci.edu, 8
+  cs.ics.uci.edu, 16
+  cs.uci.edu, 9
+  dale-cooper-v0.ics.uci.edu, 2
+  dgillen.ics.uci.edu, 33
+  ds4all.ics.uci.edu, 11
+  duttgroup.ics.uci.edu, 140
+  dynamo.ics.uci.edu, 32
+  e2.ics.uci.edu, 3
+  edgelab.ics.uci.edu, 7
+  elms.ics.uci.edu, 2
+  emj.ics.uci.edu, 42
+  evoke.ics.uci.edu, 4
+  flamingo.ics.uci.edu, 243
+  fr.ics.uci.edu, 6
+  futurehealth.ics.uci.edu, 1
+  gitlab.ics.uci.edu, 4
+  gradinfo.ics.uci.edu, 3
+  grape.ics.uci.edu, 189
+  graphics.ics.uci.edu, 1
+  hack.ics.uci.edu, 1
+  helpdesk.ics.uci.edu, 42
+  hobbes.ics.uci.edu, 11
+  hpi.ics.uci.edu, 6
+  hub.ics.uci.edu, 5
+  i-sensorium.ics.uci.edu, 5
+  icde2023.ics.uci.edu, 48
+  ics.uci.edu, 6999
+  industryshowcase.ics.uci.edu, 25
+  informatics.ics.uci.edu, 36
+  informatics.uci.edu, 13
+  intranet.ics.uci.edu, 16
+  ipubmed.ics.uci.edu, 1
+  isg.ics.uci.edu, 424
+  isi-buds.ics.uci.edu, 4
+  jgarcia.ics.uci.edu, 42
+  julia-hub.ics.uci.edu, 2
+  luci.ics.uci.edu, 5
+  mailman.ics.uci.edu, 40
+  malek.ics.uci.edu, 1
+  mcs.ics.uci.edu, 13
+  mdogucu.ics.uci.edu, 1
+  mds.ics.uci.edu, 10
+  mhcid.ics.uci.edu, 21
+  mswe.ics.uci.edu, 11
+  myip.ics.uci.edu, 1
+  nalini.ics.uci.edu, 8
+  netreg.ics.uci.edu, 3
+  ngs.ics.uci.edu, 2030
+  oai.ics.uci.edu, 8
+  onboarding.ics.uci.edu, 4
+  psearch.ics.uci.edu, 2
+  riscit.ics.uci.edu, 3
+  sana.ics.uci.edu, 7
+  scale.ics.uci.edu, 7
+  seal.ics.uci.edu, 46
+  sherlock.ics.uci.edu, 8
+  signage.ics.uci.edu, 3
+  sparcfire.ics.uci.edu, 6
+  speedtest.ics.uci.edu, 2
+  staging-hub.ics.uci.edu, 2
+  stairs.ics.uci.edu, 3
+  stat.ics.uci.edu, 15
+  stat.uci.edu, 6
+  summeracademy.ics.uci.edu, 13
+  support.ics.uci.edu, 13
+  swiki.ics.uci.edu, 16
+  tastier.ics.uci.edu, 2
+  tutoring.ics.uci.edu, 5
+  unite.ics.uci.edu, 10
+  vision.ics.uci.edu, 221
+  wics.ics.uci.edu, 1158
+  wiki.ics.uci.edu, 791
+  www-db.ics.uci.edu, 24
+  xtune.ics.uci.edu, 7

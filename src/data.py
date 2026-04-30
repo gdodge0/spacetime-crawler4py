@@ -1,7 +1,8 @@
+import hashlib
 import json
 import logging
 import re
-from simhash import Simhash, SimhashIndex
+import struct
 from pathlib import Path
 from src.normalization import normalize_url
 from time import time
@@ -23,10 +24,82 @@ SUBTREE_BAN_TRIGGER = 3  # ban an ancestor once N descendant patterns have banne
 SUBTREE_BAN_MIN_DEPTH = 2  # don't cascade above 2 path segments deep
 
 TEXT_DIR = "text"
+# Simple 64-bit SimHash from scratch.
+SIMHASH_BITS = 64
+SIMHASH_NEAR_DUP_DISTANCE = 3
 
 
 def get_features(text: str) -> list[str]:
     return re.findall(r"\w+", text.lower())
+
+
+class Simhash:
+
+
+    def __init__(self, features: list[str] | None = None, value: int | None = None) -> None:
+        
+        #if value provided use it otherwise compute from features
+        if value is not None:
+            self.value = value & ((1 << SIMHASH_BITS) - 1)
+        else:
+            self.value = self._build(features or [])
+
+    # Hash a single feature to a 64 bit int
+    def _feature_hash(self, feature: str) -> int:
+        digest = hashlib.md5(feature.encode("utf-8", errors="replace")).digest()
+        return struct.unpack("<Q", digest[:8])[0]
+
+    # Build the SimHash value from the list of feature
+    def _build(self, features: list[str]) -> int:
+        if not features:
+            return 0
+
+        #maintain vector of bit count.
+        vector = [0] * SIMHASH_BITS
+
+        #for each feature, hash it and update the vector 1s increment 0 decrement
+        for feature in features:
+            hashed = self._feature_hash(feature)
+            for bit in range(SIMHASH_BITS):
+                if hashed & (1 << bit):
+                    vector[bit] += 1
+                else:
+                    vector[bit] -= 1
+
+        #if bit count >0 set bit to 1 else 0
+        value =0
+        
+        #convert vector to final simhash value
+        for bit, score in enumerate(vector):
+            if score > 0:
+                value |= 1 << bit
+        return value
+
+    #t
+    def distance(self, other: "Simhash") -> int:
+        return bin(self.value ^ other.value).count("1")
+
+# Main logic for trap detection and logging
+class SimhashIndex:
+    def __init__(self, objs: list[tuple[str, Simhash]] | None = None, k: int = SIMHASH_NEAR_DUP_DISTANCE) -> None:
+        self.k = k
+        self._entries: list[tuple[str, int]] = []
+        
+        for key, simhash in objs or []:
+            self.add(key, simhash)
+
+    # add and 
+    def add(self, key: str, simhash: Simhash) -> None:
+        self._entries.append((key, simhash.value))
+
+    def get_near_dups(self, simhash: Simhash) -> list[str]:
+        matches = []
+        for key, value in self._entries:
+
+            if bin(simhash.value ^ value).count("1") <= self.k:
+                matches.append(key)
+
+        return matches
 
 
 def compute_simhash(text: str) -> Simhash:
