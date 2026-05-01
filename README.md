@@ -11,7 +11,7 @@ As a team, we decided to implement competing solutions, meet, take the best elem
 
 ## Approach -- Crawler
 
-We decided to take a "learning" approach to the crawler and trap detection. Rather than blocking suspicious patterns like /pix/, /images/, /calendar/, etc..., we decided to use SimHash similarity, page error rate, and information value to determine which server paths should be crawled. Paths are bucketed by their content, e.g. https://example.org/hello-world/calendar/2025-02 will be placed in the Host object corresponding to /hello-world/calendar/{DATE}. When greater than 3 of a parent directories subdirectories have been banned, the parent will also be banned, gated by a depth threshold so the host itself doesn't end up banned.
+We decided to take a "learning" approach to the crawler and trap detection. Rather than blocking suspicious patterns like /pix/, /images/, /calendar/, etc..., we decided to use SimHash similarity, page error rate, and information value to determine which server paths should be crawled. Paths are bucketed by their content, e.g. https://example.org/hello-world/calendar/2025-02 will be placed in the Host object corresponding to /hello-world/calendar/{DATE}. When 3 of a parent directories subdirectories have been banned, the parent will also be banned, gated by a depth threshold so the host itself doesn't end up banned.
 
 Page data is logged to jsonl files per-host so that we can resume runs in the event of a server / crawler crash. This also lets us made changes to our statistics generation without having to re-run the entire crawler.
 
