@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 def get_logger(name, filename=None):
     logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
     logger.setLevel(logging.INFO)
     if not os.path.exists("Logs"):
         os.makedirs("Logs")
@@ -30,6 +32,5 @@ def get_urlhash(url):
         f"{parsed.query}/{parsed.fragment}".encode("utf-8")).hexdigest()
 
 def normalize(url):
-    if url.endswith("/"):
-        return url.rstrip("/")
+    # Preserve trailing slashes so urljoin (url, href) works properly
     return url
