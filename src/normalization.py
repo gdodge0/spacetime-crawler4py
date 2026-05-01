@@ -39,9 +39,10 @@ def pattern_detection(path: str) -> str:
         elif is_large(item):
             rebuilt_path += "{LARGE}/"
         elif ":" in item:
-            # docuwiki namespaces
-            namespace = ":".join(item.split(":")[:-1])
-            rebuilt_path += namespace.lower() + ":{PAGE}/"
+            parts = item.split(":")
+            for ns in parts[:-1]:
+                rebuilt_path += ns.lower() + "/"
+            rebuilt_path += "{PAGE}/"
         elif i == leaf_idx and "." in item:
             rebuilt_path += "{FILE}/"
         else:
@@ -109,6 +110,8 @@ def normalize_url(url: str) -> dict | None:
 
     path = split.path
 
+    dedup_path = path.rstrip("/") or "/"
+
     query = parse_qsl(split.query)
     query = strip_query(query) # remove ad / junk query params
     if is_apache_sort_query(query):
@@ -118,7 +121,7 @@ def normalize_url(url: str) -> dict | None:
 
     return {
         "fetch_url": urlunsplit((scheme, netloc, path, query, "")),
-        "dedup_key": urlunsplit(("http", dedup_netloc, path, query, "")),
+        "dedup_key": urlunsplit(("http", dedup_netloc, dedup_path, query, "")),
         "bucket_keys": [pattern_detection(path)],
         "normalized_urlsplit": {
             "scheme": scheme,

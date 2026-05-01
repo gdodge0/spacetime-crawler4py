@@ -44,16 +44,22 @@ def status_ok(status):
         return False  # download exception
     elif status in range(400, 600):
         return False  # error page of some nature
+    elif status == 700:
+        return False # Custom size exceeded status code
 
     return True
 
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+HTML_CONTENT_TYPES = ["text/html", "application/xhtml+xml"]
 
 
 def headers_ok(headers):
     content_type = headers.get("content-type")
-    if (content_type is None) or (not "text/html" in content_type.lower()):
+    if content_type is None:
+        return False
+    ct_lower = content_type.lower()
+    if not any(t in ct_lower for t in HTML_CONTENT_TYPES):
         return False
 
     content_length = headers.get("content-length")
