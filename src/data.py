@@ -1,7 +1,8 @@
+import hashlib
 import json
 import logging
 import re
-import hashlib
+import struct
 from pathlib import Path
 from src.normalization import normalize_url
 from time import time
@@ -23,109 +24,86 @@ SUBTREE_BAN_TRIGGER = 3  # ban an ancestor once N descendant patterns have banne
 SUBTREE_BAN_MIN_DEPTH = 2  # don't cascade above 2 path segments deep
 
 TEXT_DIR = "text"
+# Simple 64-bit SimHash from scratch.
+SIMHASH_BITS = 64
+SIMHASH_NEAR_DUP_DISTANCE = 3
 
 
 def get_features(text: str) -> list[str]:
     return re.findall(r"\w+", text.lower())
 
 
-def compute_simhash(text: str) -> 'Simhash':
-    return Simhash(features=get_features(text))
-
-
 class Simhash:
-    """
-    Simhash implementation from scratch.
-    Creates a compact fingerprint of text content for similarity detection.
-    """
-    def __init__(self, features: list[str] = None, hashbits: int = 64, value: int = None):
-        """Compute simhash fingerprint from text features (words), or reconstruct from stored value."""
-        self.hashbits = hashbits  # Keep the desired fingerprint width for this object
+
+
+    def __init__(self, features: list[str] | None = None, value: int | None = None) -> None:
         
+        #if value provided use it otherwise compute from features
         if value is not None:
-            # Reconstruct from stored integer value
-            self.value = value
-        elif features is not None:
-            # Compute from features
-            votes = [0] * hashbits  # One score per bit position, starting at zero
-
-            for feature in features:
-                bits = self._feature_bits(feature)  # Convert a word into a fixed-length bit string
-                for i, bit in enumerate(bits):
-                    if bit == '1':
-                        votes[i] += 1  # Word votes that bit position i should become 1
-                    else:
-                        votes[i] -= 1  # Word votes that bit position i should become 0
-
-            self.value = self._votes_to_fingerprint(votes)  # Turn vote totals into final fingerprint
+            self.value = value & ((1 << SIMHASH_BITS) - 1)
         else:
-            raise ValueError("Must provide either 'features' or 'value'")
+            self.value = self._build(features or [])
 
-    def _feature_bits(self, feature: str) -> str:
-        """
-        Hash a feature word and return a fixed-length binary string.
+    # Hash a single feature to a 64 bit int
+    def _feature_hash(self, feature: str) -> int:
+        digest = hashlib.md5(feature.encode("utf-8", errors="replace")).digest()
+        return struct.unpack("<Q", digest[:8])[0]
 
-        MD5 produces a 128-bit value, but we intentionally keep only hashbits bits.
-        """
-        hash_obj = hashlib.md5(feature.encode('utf-8'))  # Hash the word bytes
-        hash_int = int(hash_obj.hexdigest(), 16)  # Convert the hex digest to an integer
-        mask = (1 << self.hashbits) - 1  # Mask to keep exactly hashbits bits
-        truncated = hash_int & mask  # Keep the lowest hashbits bits only
-        return bin(truncated)[2:].zfill(self.hashbits)  # Return as zero-padded binary string
+    # Build the SimHash value from the list of feature
+    def _build(self, features: list[str]) -> int:
+        if not features:
+            return 0
 
-    def _votes_to_fingerprint(self, votes: list[int]) -> int:
-        """
-        Convert accumulated +1/-1 vote totals into a final bit fingerprint.
+        #maintain vector of bit count.
+        vector = [0] * SIMHASH_BITS
 
-        If vote >= 0, the final bit is 1; otherwise it is 0.
-        """
-        fingerprint = 0  # Start with no bits set
-        for i, vote in enumerate(votes):
-            if vote >= 0:
-                fingerprint |= 1 << (self.hashbits - 1 - i)  # Set the corresponding bit in the fingerprint
-        return fingerprint
+        #for each feature, hash it and update the vector 1s increment 0 decrement
+        for feature in features:
+            hashed = self._feature_hash(feature)
+            for bit in range(SIMHASH_BITS):
+                if hashed & (1 << bit):
+                    vector[bit] += 1
+                else:
+                    vector[bit] -= 1
 
-    def hamming_distance(self, other: 'Simhash') -> int:
-        """
-        Count how many bits differ between two simhash fingerprints.
-        """
-        xor_result = self.value ^ other.value  # XOR shows differing bits as 1s
-        return bin(xor_result).count('1')  # Count the number of differing bits
+        #if bit count >0 set bit to 1 else 0
+        value =0
+        
+        #convert vector to final simhash value
+        for bit, score in enumerate(vector):
+            if score > 0:
+                value |= 1 << bit
+        return value
 
+    #t
+    def distance(self, other: "Simhash") -> int:
+        return bin(self.value ^ other.value).count("1")
 
+# Main logic for trap detection and logging
 class SimhashIndex:
-    """
-    Index for storing simhashes and finding near-duplicates.
-    Used to detect when too many similar pages have been crawled (trap detection).
-    """
-    def __init__(self, objs=None):
-        """Initialize the index with optional existing (url, simhash) tuples."""
-        self.objs = {}  # Map simhash integer -> list of (url, simhash) tuples
+    def __init__(self, objs: list[tuple[str, Simhash]] | None = None, k: int = SIMHASH_NEAR_DUP_DISTANCE) -> None:
+        self.k = k
+        self._entries: list[tuple[str, int]] = []
+        
+        for key, simhash in objs or []:
+            self.add(key, simhash)
 
-        if objs:
-            for url, sh in objs:
-                self.add(url, sh)  # Add any provided entries to the index
+    # add and 
+    def add(self, key: str, simhash: Simhash) -> None:
+        self._entries.append((key, simhash.value))
 
-    def add(self, url: str, sh: Simhash):
-        """Store a URL and its simhash in the index."""
-        if sh.value not in self.objs:
-            self.objs[sh.value] = []  # Create a new bucket for new fingerprints
-        self.objs[sh.value].append((url, sh))  # Append this page to the bucket for its fingerprint
+    def get_near_dups(self, simhash: Simhash) -> list[str]:
+        matches = []
+        for key, value in self._entries:
 
-    def get_near_dups(self, sh: Simhash) -> list[str]:
-        """Return URLs whose stored simhash is close enough to the input simhash."""
-        near_dups = []  # Collect similar URLs here
-        threshold = 3  # Maximum allowed Hamming distance for near-duplicate
+            if bin(simhash.value ^ value).count("1") <= self.k:
+                matches.append(key)
 
-        for stored_value, url_simhash_pairs in self.objs.items():
-            stored_simhash = url_simhash_pairs[0][1]  # Take the simhash from this bucket
-            distance = sh.hamming_distance(stored_simhash)  # Compare similarity
+        return matches
 
-            if distance <= threshold:
-                for url, _ in url_simhash_pairs:
-                    near_dups.append(url)  # Add every URL that shares this stored fingerprint
 
-        return near_dups
+def compute_simhash(text: str) -> Simhash:
+    return Simhash(get_features(text))
 
 
 class Pattern:
