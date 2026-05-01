@@ -23,7 +23,7 @@ To support this approach, we've modified some of the utils in the following ways
 - Prevents the crawler from downloading a full dataset, even if it's extension isn't in the blocklist.
 - Returns a custom error with status_code 700.
 
-### utils.\__init__.py
+### utils.\_\_init\_\_.py
 
 - crawler logger was getting duplicated, so I added a check here. No change in functionality.
 
