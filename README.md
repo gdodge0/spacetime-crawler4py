@@ -1,3 +1,53 @@
+UCI Spring 2026 - Web Crawler - Gabe, Rafayel, Ben
+-------------------------
+**Contributions**
+Gabe - Crawler implementation, initial statistics, logging, overall system design
+Rafayel & Ben - SimHash implementation, stopword detection, word / pagelength statistics
+
+**Approach -- Teamwork**
+As a team, we decided to implement competing solutions, meet, take the best elements from each approach, and then iterate with a final version. Contributions above reflect whose solution was selected as the baseline for our final iteration, and should not be taken as implying someone did *not* work on something.
+
+**Approach -- Crawler**
+We decided to take a "learning" approach to the crawler and trap detection. Rather than blocking suspicious patterns like /pix/, /images/, /calendar/, etc..., we decided to use SimHash similarity, page error rate, and information value to determine which server paths should be crawled. Paths are bucketed by their content, e.g. https://example.org/hello-world/calendar/2025-02 will be placed in the Host object corresponding to /hello-world/calendar/{DATE}. When greater than 3 of a parent directories subdirectories have been banned, the parent will also be banned, gated by a depth threshold so the host itself doesn't end up banned.
+
+Page data is logged to jsonl files per-host so that we can resume runs in the event of a server / crawler crash. This also lets us made changes to our statistics generation without having to re-run the entire crawler.
+
+To support this approach, we've modified some of the utils in the following ways:
+utils/download.py
+ - Drop in-progress downloads once they exceed MAX_SIZE. 
+ - Prevents the crawler from downloading a full dataset, even if it's extension isn't in the blocklist.
+ - Returns a custom error with status_code 700.
+utils.\__init__.py
+ - crawler logger was getting duplicated, so I added a check here. No change in functionality.
+crawler/frontier.py
+ - Because of our dynamic approach, a URL pattern may be banned after it's already enqueued in the frontier.
+ - We modified the frontier to check if a url pattern is valid on dequeue to resolve this issue.
+
+Known bad query params and file types are blocked for the sake of crawl time, however, the crawler will usually learn about these patterns on a per-host basis if you allow it.
+
+**Limitations / Things I would change for a real world crawl**
+Using sitemap.xml
+    - sitemap.xml is incredibly valuable for web crawlers. I attempted to add code to utilize sitemaps at once point, but they pointed to too many urls that were a "cache miss" and so slowed down our crawler too much.
+    - That is, it worked! However, waiting 20 seconds for a styx cache miss is untenable and so I had to terminate the run and remove th e functionality so that the crawler would complete between server crashes.
+Respecting robots.txt
+    - We're relying on <608> status codes from styx to know which sites we are / aren't allowed to crawl. 
+    - This isn't realistic, and in the real-world, we would have to check to see what we're actually allowed to get.
+General performance
+    - The performance of this crawler is not optimal for a large-scale crawl. We're storing data in memory rather than using a database, and the crawler is strictly single-threaded. 
+    - Code quality could also be better. If this wasn't a one off assignment we would spend a lot more time drafting an implementation spec. A lot of the code has been shoehorned in so to speak as we encountered issues in the real world.
+Edge cases
+    - The crawler could be caught by an intentional trap.
+    - Lets take for example https://evil.example.org/ - a hypothetical page that serves random long strings of words as valid html on it's root.
+    - This evades the 3 checks:
+        - Words > 50, so it has information value
+        - Similarity is low, because its randomly generated
+        - Error rate is low, because it's a valid page returning status <200>
+    - This can be fixed by adding a MAX_CRAWL_HOST or MAX_CRAWL_SUBTREE parameter so that a single, intentionally misbehaving site cannot lock up the crawler forever.
+    - However, this issue was not encountered on the ICS network so we did not implement this fix. 
+    - This is also a very obvious edge case. I'm 100% sure there are many that are less obvious. 
+
+
+
 ABOUT
 -------------------------
 This is the base implementation of a full crawler that uses a spacetime
