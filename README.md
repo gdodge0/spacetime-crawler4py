@@ -38,13 +38,13 @@ Known bad query params and file types are blocked for the sake of crawl time, ho
 
 ### Using sitemap.xml
 
-- sitemap.xml is incredibly valuable for web crawlers. I attempted to add code to utilize sitemaps at once point, but they pointed to too many urls that were a "cache miss" and so slowed down our crawler too much.
-- That is, it worked! However, waiting 20 seconds for a styx cache miss is untenable and so I had to terminate the run and remove th e functionality so that the crawler would complete between server crashes.
+- sitemap.xml is incredibly valuable for web crawlers. I attempted to add code to utilize sitemaps at once point, but they pointed to too many urls that were a "cache miss" and so it slowed down our crawler too much.
+- That is, it worked! However, waiting 20 seconds for a styx cache miss is untenable and so I had to terminate the run and remove the functionality so that the crawler would complete between server crashes.
 
 ### Respecting robots.txt
 
 - We're relying on <608> status codes from styx to know which sites we are / aren't allowed to crawl.
-- This isn't realistic, and in the real-world, we would have to check to see what we're actually allowed to get.
+- This isn't realistic, and in the real-world, we would have to check to see what we're actually allowed to crawl.
 
 ### General performance
 
