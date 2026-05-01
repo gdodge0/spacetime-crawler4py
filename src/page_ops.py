@@ -61,8 +61,23 @@ _BOILERPLATE_ROLES = {
     "navigation", "banner", "contentinfo", "complementary", "search",
 }
 
+_HTML_MARKERS = ("<html", "<body", "<!doctype")
 
-def extract_visible_text(soup):
+
+def looks_like_html(content) -> bool:
+    if not content:
+        return False
+    if isinstance(content, bytes):
+        sample = content[:8192].decode("utf-8", errors="ignore").lower()
+    else:
+        sample = content[:8192].lower()
+    return any(m in sample for m in _HTML_MARKERS)
+
+
+def extract_visible_text(soup, content):
+    if not looks_like_html(content):
+        return ""
+
     for tag in soup(_BOILERPLATE_TAGS):
         tag.decompose()
 
