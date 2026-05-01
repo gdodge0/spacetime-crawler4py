@@ -69,11 +69,13 @@ def compute_stats(text_dir: Path) -> dict:
             continue
 
         norm = normalize_url(fetch_url)
-        dedup_key = norm["dedup_key"]
         host = norm["normalized_urlsplit"]["netloc"]
+        path = norm["normalized_urlsplit"]["path"]
 
-        if not dedup_key or not host:
+        if not host:
             continue
+
+        dedup_key = f"{host}{path.rstrip('/') or '/'}"
 
         if dedup_key in unique_pages:
             continue
