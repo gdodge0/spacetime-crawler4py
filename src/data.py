@@ -30,28 +30,36 @@ def get_features(text: str) -> list[str]:
 
 
 def compute_simhash(text: str) -> 'Simhash':
-    return Simhash(get_features(text))
+    return Simhash(features=get_features(text))
 
-"--------------------------SIMHASH CODE START--------------------------
+
 class Simhash:
     """
     Simhash implementation from scratch.
     Creates a compact fingerprint of text content for similarity detection.
     """
-    def __init__(self, features: list[str], hashbits: int = 64):
-        """Compute simhash fingerprint from text features (words)."""
+    def __init__(self, features: list[str] = None, hashbits: int = 64, value: int = None):
+        """Compute simhash fingerprint from text features (words), or reconstruct from stored value."""
         self.hashbits = hashbits  # Keep the desired fingerprint width for this object
-        votes = [0] * hashbits  # One score per bit position, starting at zero
+        
+        if value is not None:
+            # Reconstruct from stored integer value
+            self.value = value
+        elif features is not None:
+            # Compute from features
+            votes = [0] * hashbits  # One score per bit position, starting at zero
 
-        for feature in features:
-            bits = self._feature_bits(feature)  # Convert a word into a fixed-length bit string
-            for i, bit in enumerate(bits):
-                if bit == '1':
-                    votes[i] += 1  # Word votes that bit position i should become 1
-                else:
-                    votes[i] -= 1  # Word votes that bit position i should become 0
+            for feature in features:
+                bits = self._feature_bits(feature)  # Convert a word into a fixed-length bit string
+                for i, bit in enumerate(bits):
+                    if bit == '1':
+                        votes[i] += 1  # Word votes that bit position i should become 1
+                    else:
+                        votes[i] -= 1  # Word votes that bit position i should become 0
 
-        self.value = self._votes_to_fingerprint(votes)  # Turn the vote totals into an integer fingerprint
+            self.value = self._votes_to_fingerprint(votes)  # Turn vote totals into final fingerprint
+        else:
+            raise ValueError("Must provide either 'features' or 'value'")
 
     def _feature_bits(self, feature: str) -> str:
         """
@@ -118,7 +126,7 @@ class SimhashIndex:
                     near_dups.append(url)  # Add every URL that shares this stored fingerprint
 
         return near_dups
-"--------------------------SIMHASH CODE END--------------------------
+
 
 class Pattern:
     pattern: str
