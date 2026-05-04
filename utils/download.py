@@ -4,7 +4,7 @@ import time
 
 from utils.response import Response
 
-MAX_SIZE = 10 * 1024 * 1024 # 10 mb
+MAX_SIZE = 25 * 1024 * 1024 # 25 mb
 
 class ResponseTooLarge(Exception):
     pass

@@ -50,7 +50,7 @@ def status_ok(status):
     return True
 
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 HTML_CONTENT_TYPES = ["text/html", "application/xhtml+xml"]
 
 
